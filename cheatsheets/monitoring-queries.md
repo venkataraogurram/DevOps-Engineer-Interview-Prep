@@ -1,76 +1,79 @@
-# Monitoring queries cheatsheet – CloudWatch Logs Insights, PromQL, Grafana, X-Ray
+# Monitoring queries cheatsheet (annotated)
 
 [← Cheatsheet index](README.md)
 
+Format: query → what it does and when you reach for it.
+
 ## CloudWatch Logs Insights
 
-```
-fields @timestamp, @message | sort @timestamp desc | limit 100
-fields @timestamp, @message | filter @message like /(?i)error|exception/ | sort @timestamp desc
-filter @message like /AccessDenied/ | stats count() by bin(5m)
-fields @timestamp, @logStream | filter @message like "OOMKilled"
-# JSON logs
-fields @timestamp, level, msg, requestId | filter level = "ERROR" and service = "payments"
-stats count(*) as errors by path | sort errors desc | limit 20
-stats avg(latency), pct(latency, 50), pct(latency, 95), pct(latency, 99), max(latency) by bin(1m)
-stats count() by status | sort status
-stats count_distinct(userId) as users by bin(1h)
-# parse unstructured
-parse @message /(?<ip>\d+\.\d+\.\d+\.\d+) .* "(?<method>\w+) (?<path>\S+) .*" (?<status>\d{3}) (?<bytes>\d+) (?<latency>[\d.]+)/
-| filter status >= 500 | stats count() as c by path | sort c desc
-parse @message "* [*] *" as ts, level, rest
-# Lambda
-filter @type = "REPORT" | stats max(@maxMemoryUsed/1024/1024) as maxMB, avg(@duration), pct(@duration, 99), sum(@initDuration > 0) as coldStarts by bin(5m)
-filter @message like /Task timed out/ | stats count() by bin(1h)
-# ALB access logs (if shipped to CW) / VPC Flow Logs
-fields @timestamp, srcAddr, dstAddr, dstPort, action | filter action = "REJECT" and dstPort = 443 | stats count() by srcAddr | sort count() desc
-# EKS control plane audit
-fields @timestamp, user.username, verb, objectRef.resource, objectRef.name, responseStatus.code | filter verb = "delete" and objectRef.resource = "secrets"
-fields @timestamp, @message | filter @logStream like /authenticator/ | filter @message like /access denied/
-# CloudTrail (if in CW Logs)
-fields eventTime, eventName, userIdentity.arn, errorCode, errorMessage | filter errorCode like /Denied|Unauthorized/ | stats count() by eventName, userIdentity.arn
-# dedupe / display
-dedup requestId | display @timestamp, msg
-unmask @message        # data-protection masked fields
-```
+| Query | What it does / when to use |
+|---|---|
+| `fields @timestamp, @message \| sort @timestamp desc \| limit 100` | Latest 100 lines. The starting point in any log group. |
+| `fields @timestamp, @message \| filter @message like /(?i)error\|exception/ \| sort @timestamp desc` | Case-insensitive regex filter for errors. |
+| `filter @message like /AccessDenied/ \| stats count() by bin(5m)` | Error count per 5-minute bucket: see when it started. |
+| `fields @timestamp, @logStream \| filter @message like "OOMKilled"` | Which stream (pod/instance) hit a condition. |
+| `fields @timestamp, level, msg, requestId \| filter level = "ERROR" and service = "payments"` | JSON logs are auto-parsed: filter on fields directly. |
+| `stats count(*) as errors by path \| sort errors desc \| limit 20` | Top endpoints by error count. |
+| `stats avg(latency), pct(latency, 50), pct(latency, 95), pct(latency, 99), max(latency) by bin(1m)` | Latency percentiles over time. Use p95/p99, not average. |
+| `stats count() by status \| sort status` | Status code distribution. |
+| `stats count_distinct(userId) as users by bin(1h)` | Unique users per hour. |
+| `parse @message /(?<ip>\d+\.\d+\.\d+\.\d+) .* "(?<method>\w+) (?<path>\S+) .*" (?<status>\d{3}) (?<bytes>\d+) (?<latency>[\d.]+)/ \| filter status >= 500 \| stats count() as c by path \| sort c desc` | Extract fields from unstructured access logs with a named-group regex, then aggregate. |
+| `parse @message "* [*] *" as ts, level, rest` | Glob-style parse when the format is simple. |
+| `filter @type = "REPORT" \| stats max(@maxMemoryUsed/1024/1024) as maxMB, avg(@duration), pct(@duration, 99), sum(@initDuration > 0) as coldStarts by bin(5m)` | Lambda: memory headroom, duration, and cold-start count from REPORT lines. Right-size memory from `maxMB`. |
+| `filter @message like /Task timed out/ \| stats count() by bin(1h)` | Lambda timeouts over time. |
+| `fields @timestamp, srcAddr, dstAddr, dstPort, action \| filter action = "REJECT" and dstPort = 443 \| stats count() by srcAddr \| sort count() desc` | VPC Flow Logs: who is being blocked on 443. Confirms a security group/NACL problem. |
+| `fields @timestamp, user.username, verb, objectRef.resource, objectRef.name, responseStatus.code \| filter verb = "delete" and objectRef.resource = "secrets"` | EKS audit log: who deleted secrets. |
+| `fields @timestamp, @message \| filter @logStream like /authenticator/ \| filter @message like /access denied/` | EKS authenticator: IAM principals being refused (access entry missing). |
+| `fields eventTime, eventName, userIdentity.arn, errorCode, errorMessage \| filter errorCode like /Denied\|Unauthorized/ \| stats count() by eventName, userIdentity.arn` | CloudTrail in CloudWatch: AccessDenied by action and principal. The IAM debugging query. |
+| `dedup requestId \| display @timestamp, msg` | One line per request; `display` picks output columns. |
+| `unmask @message` | Reveal fields hidden by a data-protection policy (needs permission). |
 
-Metric filter patterns: `{ $.level = "ERROR" }`, `{ $.status >= 500 }`, `"ERROR" -"ERROR_IGNORE"`, `[ip, user, username, timestamp, request, status_code = 5*, bytes]`.
+Metric filter patterns (log → metric): `{ $.level = "ERROR" }` JSON field · `{ $.status >= 500 }` · `"ERROR" -"ERROR_IGNORE"` plain text include/exclude · `[ip, user, username, timestamp, request, status_code = 5*, bytes]` space-delimited columns.
 
-Alarm JSON essentials: `--comparison-operator GreaterThanThreshold --threshold 5 --evaluation-periods 3 --datapoints-to-alarm 2 --period 60 --statistic Sum --treat-missing-data notBreaching`.
+Alarm flags: `--comparison-operator GreaterThanThreshold --threshold 5 --evaluation-periods 3 --datapoints-to-alarm 2 --period 60 --statistic Sum --treat-missing-data notBreaching` → alarm when 2 of 3 one-minute datapoints exceed 5; missing data counts as OK (right for sparse error metrics).
 
-Metric math: `m1/m2*100` (error rate), `FILL(m1, 0)`, `RATE(m1)`, `ANOMALY_DETECTION_BAND(m1, 2)`, `SEARCH('{AWS/EC2,InstanceId} MetricName="CPUUtilization"', 'Average', 300)`, `INSIGHT_RULE_METRIC`, `SUM(METRICS())`, `IF(m1 > 100, 1, 0)`.
+| Metric math | What it does / when to use |
+|---|---|
+| `m1/m2*100` | Error rate as a percentage of requests. |
+| `FILL(m1, 0)` | Treat missing datapoints as zero so sparse metrics graph and alarm sensibly. |
+| `RATE(m1)` | Per-second rate of a counter. |
+| `ANOMALY_DETECTION_BAND(m1, 2)` | Band of expected values (2 standard deviations); alarm outside it for seasonal metrics. |
+| `SEARCH('{AWS/EC2,InstanceId} MetricName="CPUUtilization"', 'Average', 300)` | Dynamic set of metrics by search; dashboards that auto-include new instances. |
+| `SUM(METRICS())` | Aggregate all metrics in the expression. |
+| `IF(m1 > 100, 1, 0)` | Boolean series for composite logic. |
 
 ## PromQL
 
-```promql
-# instant / range
-up == 0
-rate(http_requests_total[5m])                                        # per-second rate
-sum by (service) (rate(http_requests_total{status=~"5.."}[5m])) / sum by (service) (rate(http_requests_total[5m]))   # error ratio
-histogram_quantile(0.95, sum by (le, service) (rate(http_request_duration_seconds_bucket[5m])))                        # p95
-increase(http_requests_total[1h]); irate(...)  (spiky); changes(process_start_time_seconds[1h]) > 0  (restarts)
-avg_over_time(cpu_usage[10m]); max_over_time(...); predict_linear(node_filesystem_avail_bytes[6h], 24*3600) < 0   # disk full in 24h
-topk(5, sum by (pod) (rate(container_cpu_usage_seconds_total[5m]))); bottomk; count by (namespace) (kube_pod_info)
-absent(up{job="api"}); label_replace(); sort_desc()
-# node
-100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)
-node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes * 100
-1 - node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}
-rate(node_network_receive_bytes_total[5m])
-# kubernetes (kube-state-metrics + cadvisor)
-sum by (namespace, pod) (rate(container_cpu_usage_seconds_total{container!=""}[5m])) / sum by (namespace, pod) (kube_pod_container_resource_requests{resource="cpu"})   # cpu vs request
-container_memory_working_set_bytes{container!=""} / on (namespace, pod, container) kube_pod_container_resource_limits{resource="memory"} > 0.9
-sum by (namespace) (kube_pod_container_status_restarts_total) ; increase(kube_pod_container_status_restarts_total[1h]) > 3
-kube_pod_status_phase{phase="Pending"} == 1 ; kube_deployment_status_replicas_unavailable > 0
-kube_node_status_condition{condition="Ready", status="true"} == 0
-rate(container_cpu_cfs_throttled_periods_total[5m]) / rate(container_cpu_cfs_periods_total[5m]) > 0.25   # throttling
-kube_horizontalpodautoscaler_status_current_replicas == kube_horizontalpodautoscaler_spec_max_replicas    # HPA maxed
-# SLO burn rate (99.9%, 30d): fast window
-(sum(rate(http_requests_total{status=~"5.."}[1h])) / sum(rate(http_requests_total[1h]))) > (14.4 * 0.001)
-```
+| Query | What it does / when to use |
+|---|---|
+| `up == 0` | Targets Prometheus can't scrape. First check when metrics are missing. |
+| `rate(http_requests_total[5m])` | Per-second request rate over a 5-minute window. Always wrap counters in `rate()`. |
+| `sum by (service) (rate(http_requests_total{status=~"5.."}[5m])) / sum by (service) (rate(http_requests_total[5m]))` | Error ratio per service. The core SLI. |
+| `histogram_quantile(0.95, sum by (le, service) (rate(http_request_duration_seconds_bucket[5m])))` | p95 latency from a histogram. Must aggregate by `le`. |
+| `increase(http_requests_total[1h])` | Total increase over an hour (requests served). |
+| `irate(...)` | Instant rate from the last two samples; spiky, for fast-moving graphs only. |
+| `changes(process_start_time_seconds[1h]) > 0` | Processes that restarted in the last hour. |
+| `avg_over_time(cpu_usage[10m])` / `max_over_time(...)` | Smoothed or peak values over a window. |
+| `predict_linear(node_filesystem_avail_bytes[6h], 24*3600) < 0` | Disk will be full within 24 hours based on the last 6 hours. Alert before it happens. |
+| `topk(5, sum by (pod) (rate(container_cpu_usage_seconds_total[5m])))` | Five hottest pods. `bottomk` for the opposite. |
+| `count by (namespace) (kube_pod_info)` | Pods per namespace. |
+| `absent(up{job="api"})` | Fires when a series disappears entirely (job removed/renamed). |
+| `100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)` | Node CPU utilisation %. |
+| `node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes * 100` | Node memory available %. |
+| `1 - node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}` | Root disk used fraction. |
+| `rate(node_network_receive_bytes_total[5m])` | Network ingress bytes/s. |
+| `sum by (namespace, pod) (rate(container_cpu_usage_seconds_total{container!=""}[5m])) / sum by (namespace, pod) (kube_pod_container_resource_requests{resource="cpu"})` | CPU usage vs request: >1 means under-requested, <0.3 means over-requested. Right-sizing input. |
+| `container_memory_working_set_bytes{container!=""} / on (namespace, pod, container) kube_pod_container_resource_limits{resource="memory"} > 0.9` | Containers within 10% of their memory limit: OOM candidates. |
+| `increase(kube_pod_container_status_restarts_total[1h]) > 3` | Crashlooping containers. |
+| `kube_pod_status_phase{phase="Pending"} == 1` | Pods stuck Pending. |
+| `kube_deployment_status_replicas_unavailable > 0` | Deployments not fully available. |
+| `kube_node_status_condition{condition="Ready", status="true"} == 0` | NotReady nodes. |
+| `rate(container_cpu_cfs_throttled_periods_total[5m]) / rate(container_cpu_cfs_periods_total[5m]) > 0.25` | CPU throttling ratio: limits too tight. |
+| `kube_horizontalpodautoscaler_status_current_replicas == kube_horizontalpodautoscaler_spec_max_replicas` | HPA pinned at max: capacity ceiling reached. |
+| `(sum(rate(http_requests_total{status=~"5.."}[1h])) / sum(rate(http_requests_total[1h]))) > (14.4 * 0.001)` | SLO burn-rate fast alert for a 99.9% SLO: burning the 30-day budget 14.4× too fast over 1 hour. |
 
-Alert rule:
 ```yaml
+# Alert rule – fires only after the condition holds for 10 minutes, with a runbook link
 groups:
   - name: api
     rules:
@@ -81,32 +84,47 @@ groups:
         annotations: { summary: "{{ $labels.service }} error rate {{ $value | humanizePercentage }}", runbook_url: "https://runbooks/api-errors" }
 ```
 
-Alertmanager: `route` (group_by, group_wait, repeat_interval, receivers), `inhibit_rules`, `silences`. `amtool alert query`, `promtool check rules`, `promtool query instant`.
-
-Prometheus ops: `/-/healthy`, `/-/reload`, `/targets`, `/api/v1/query?query=up`, `curl -s localhost:9090/api/v1/targets | jq '.data.activeTargets[] | select(.health!="up")'`. Scrape via `ServiceMonitor`/`PodMonitor` (Prometheus Operator) or annotations `prometheus.io/scrape: "true"`, `prometheus.io/port`.
+| Prometheus ops | What it does / when to use |
+|---|---|
+| `promtool check rules rules.yml` / `promtool check config prometheus.yml` | Validate before reload. CI step. |
+| `promtool query instant http://prom:9090 'up'` | Run a query from the shell. |
+| `curl -s localhost:9090/api/v1/targets \| jq '.data.activeTargets[] \| select(.health!="up")'` | Unhealthy scrape targets with the error reason. |
+| `curl -X POST localhost:9090/-/reload` | Reload config without restart (needs `--web.enable-lifecycle`). |
+| `/targets`, `/-/healthy`, `/api/v1/query?query=up` | UI and API endpoints. |
+| `amtool alert query` / `amtool silence add alertname=X --duration 2h` | Alertmanager: current alerts / silence during maintenance. |
+| Alertmanager config | `route` (group_by, group_wait, repeat_interval, receivers), `inhibit_rules` (suppress child alerts when the parent fires), silences. |
+| Scraping targets | `ServiceMonitor`/`PodMonitor` CRDs with the Prometheus Operator, or pod annotations `prometheus.io/scrape: "true"`, `prometheus.io/port: "9102"`. |
 
 ## Grafana
 
-- Variables: `label_values(up, job)`, `$__rate_interval`, `$__range`, `$__interval`; chained variables; `=~ "$ns"` multi-value.
-- Panel tips: units, thresholds, legend `{{pod}}`, transformations, `Stat` for SLO, `State timeline` for up/down; annotations from deploy events.
-- Provisioning: `provisioning/datasources/*.yaml`, `provisioning/dashboards/*.yaml` + JSON; `grafana-cli`, API `POST /api/dashboards/db`; Terraform `grafana_dashboard`.
-- Alerting: unified alerting, contact points, notification policies; Amazon Managed Grafana uses SigV4 datasources (AMP, CloudWatch).
+| Item | What it does / when to use |
+|---|---|
+| `label_values(up, job)` | Dashboard variable populated from a label. |
+| `$__rate_interval` | Safe interval for `rate()` that adapts to zoom level; use it instead of a fixed `[5m]`. |
+| `$__range` / `$__interval` | Selected time range / graph step. |
+| `{service=~"$svc"}` | Multi-value variable in a query (regex match). |
+| Panel settings | Units, thresholds (colour at SLO breach), legend `{{pod}}`, transformations (join, calculate), `Stat` for SLO numbers, `State timeline` for up/down history. |
+| Annotations | Mark deploys on graphs from a deploy-events query; correlate regressions with releases. |
+| Provisioning | `provisioning/datasources/*.yaml`, `provisioning/dashboards/*.yaml` + JSON files, or Terraform `grafana_dashboard`; dashboards as code in git. |
+| Alerting | Unified alerting with contact points and notification policies; Amazon Managed Grafana authenticates to AMP/CloudWatch with SigV4. |
 
-## X-Ray / tracing
+## X-Ray filter expressions
 
-```
-# X-Ray filter expressions
-service("payments-api") AND fault
-responsetime > 2 AND http.status = 200
-annotation.customer_tier = "gold" AND duration > 1
-edge("payments-api", "DynamoDB") { error }
-http.url CONTAINS "/pay"  ;  id(trace_id)  ;  group("prod-payments")
-```
-`aws xray get-trace-summaries --start-time ... --end-time ... --filter-expression 'fault'`; `aws xray batch-get-traces --trace-ids ...`; sampling rules via `aws xray create-sampling-rule`. ADOT collector config: receivers (otlp, prometheus) → processors (batch, resourcedetection) → exporters (awsxray, awsemf, prometheusremotewrite to AMP).
+| Expression | What it does / when to use |
+|---|---|
+| `service("payments-api") AND fault` | Traces with 5xx faults in one service. |
+| `responsetime > 2 AND http.status = 200` | Slow but successful requests. |
+| `annotation.customer_tier = "gold" AND duration > 1` | Filter on custom annotations your code adds (indexed). |
+| `edge("payments-api", "DynamoDB") { error }` | Errors on a specific downstream call. |
+| `http.url CONTAINS "/pay"` | By path. |
+| `id(trace_id)` | One trace by ID (from a log line). |
+| `aws xray get-trace-summaries --start-time ... --end-time ... --filter-expression 'fault'` | CLI equivalent. `batch-get-traces --trace-ids` for full segments. |
 
-## Golden-signal dashboard template (per service)
+ADOT collector pipeline: receivers (otlp, prometheus) → processors (batch, resourcedetection) → exporters (awsxray, awsemf for CloudWatch metrics, prometheusremotewrite to AMP). One agent, three signals.
 
-Row 1: request rate · error rate (%) · p50/p95/p99 latency · saturation (CPU vs request, memory vs limit).
-Row 2: pods ready/desired · restarts · HPA current/max · throttling.
-Row 3: dependencies: DB connections/latency, queue depth/age, downstream error rate.
-Row 4: deploy annotations, SLO burn rate, error budget remaining.
+## Golden-signal dashboard layout (per service)
+
+1. Request rate · error rate % · p50/p95/p99 latency · saturation (CPU vs request, memory vs limit).
+2. Pods ready/desired · restarts · HPA current/max · CPU throttling.
+3. Dependencies: DB connections and latency, queue depth and age, downstream error rate.
+4. Deploy annotations · SLO burn rate · error budget remaining.

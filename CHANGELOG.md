@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.1 – 2026-10-28
+
+Changed
+- All 12 `cheatsheets/` rewritten from bare command lists into annotated form: two-column tables (command → what it does / when to use), inline comments on every multi-line snippet, and error → cause → fix tables where relevant. Content coverage unchanged; readability is the point.
+
 ## v2.0 – 2026-10-28
 
 Added

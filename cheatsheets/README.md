@@ -1,6 +1,6 @@
 # Command cheatsheets
 
-Dense, copy-paste-ready references. Skim one per day; keep them open during the hands-on round.
+Annotated references: every command has a "what it does / when to use" column, and multi-line snippets (Dockerfile, playbook, Jenkinsfile, workflows) carry inline comments. Skim one per day; keep them open during the hands-on round.
 
 | File | Covers |
 |---|---|

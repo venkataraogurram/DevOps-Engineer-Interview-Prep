@@ -2,7 +2,7 @@
 
 Built for an IDFC FIRST Bank Platform/DevOps Engineer interview (AWS focus, Terraform + Packer, Kubernetes, CI/CD, Python/Bash, 5–10 yrs), from the recruiter's prep sheet and the JD. Reusable for any AWS-centric DevOps or platform role.
 
-**Version:** v2.0 · [Changelog](CHANGELOG.md) · v1.0 is tagged if you want the shorter set.
+**Version:** v2.1 · [Changelog](CHANGELOG.md) · v1.0 is tagged if you want the shorter set.
 
 ## Layout
 
@@ -18,7 +18,7 @@ Built for an IDFC FIRST Bank Platform/DevOps Engineer interview (AWS focus, Terr
 | `08-refresher-monitoring-docker-serverless.md` | CloudWatch, ELK, Prometheus/Grafana, Docker, microservices, serverless | Day 4 |
 | `09-coding-round-practice.md` | Six "half-baked" Terraform and Kubernetes exercises with solutions and verification commands | Day 4–5, repeat |
 | [`qna/`](qna/README.md) | **218 questions with full spoken-style answers**, one file per topic (21 files): core topics, Linux, networking, Ansible, advanced AWS/Terraform/Kubernetes/CI-CD, system design, advanced scripting with code | 20 a day, aloud |
-| [`cheatsheets/`](cheatsheets/README.md) | **12 command cheatsheets**: Linux, networking, Git, Docker, Kubernetes/kubectl + EKS, Helm, Ansible, Terraform, Packer, AWS CLI, CI/CD syntax (Jenkins/GHA/GitLab/CodeBuild), monitoring queries (Logs Insights, PromQL, X-Ray) | Keep open during hands-on rounds |
+| [`cheatsheets/`](cheatsheets/README.md) | **12 annotated command cheatsheets** (every command explained): Linux, networking, Git, Docker, Kubernetes/kubectl + EKS, Helm, Ansible, Terraform, Packer, AWS CLI, CI/CD syntax (Jenkins/GHA/GitLab/CodeBuild), monitoring queries (Logs Insights, PromQL, X-Ray) | Keep open during hands-on rounds |
 
 ## 7-day plan (adjust to the interview date)
 
