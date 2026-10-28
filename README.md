@@ -15,7 +15,7 @@ Source material: recruiter's "DevOps Interview Prep Guide" PDF + the JD PDF (Dev
 | `07-refresher-scripting.md` | Bash + Python patterns for automation, log parsing, boto3, typical whiteboard problems with solutions | Day 3–4 |
 | `08-refresher-monitoring-docker-serverless.md` | CloudWatch, ELK, Prometheus/Grafana, Docker, microservices, serverless | Day 4 |
 | `09-coding-round-practice.md` | 6 "half-baked" Terraform and Kubernetes exercises in the exact style the recruiter described, with solutions and the commands to verify | Day 4–5, then repeat |
-| `10-interview-questions-and-answers.md` | 100 questions with full spoken-style answers across all topics, scenarios, and behavioral/lead questions | Every day, 20 at a time; read aloud |
+| `qna/` | 100 questions with full spoken-style answers, one file per topic (12 files, see `qna/README.md`) | Every day, 20 at a time; read aloud |
 
 ## 5-day plan (adjust to your interview date)
 
@@ -24,7 +24,7 @@ Source material: recruiter's "DevOps Interview Prep Guide" PDF + the JD PDF (Dev
 - **Day 3** – `05` + `06`. On a kind/minikube cluster: Deployment + Secret + `secretKeyRef` + probes + `kubectl rollout status`.
 - **Day 4** – `07` + `08`. Write the three Python/Bash problems in `07` from scratch without looking.
 - **Day 5** – `09` twice. Then re-read the STAR stories in `01` out loud.
-- **Every day** – 20 questions from `10`, answered aloud before reading the answer.
+- **Every day** – 20 questions from `qna/`, answered aloud before reading the answer.
 
 ## Ground rules for the interview
 
