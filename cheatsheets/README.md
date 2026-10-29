@@ -1,6 +1,6 @@
 # Command cheatsheets
 
-Annotated references: every command has a "what it does / when to use" column, and multi-line snippets (Dockerfile, playbook, Jenkinsfile, workflows) carry inline comments. Skim one per day; keep them open during the hands-on round.
+Annotated references: each command is followed by a line explaining what it does and when to use it, and multi-line snippets (Dockerfile, playbook, Jenkinsfile, workflows) carry inline comments. Skim one per day; keep them open during the hands-on round.
 
 | File | Covers |
 |---|---|

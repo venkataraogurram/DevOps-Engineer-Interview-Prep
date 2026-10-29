@@ -85,19 +85,49 @@ pipeline {
 }
 ```
 
-| Jenkins item | What it does / when to use |
-|---|---|
-| Shared library `vars/terraformDeploy.groovy` with `def call(Map cfg) { pipeline { ... } }` | Teams write `terraformDeploy(env: 'prod')` and get the standard pipeline. How you enforce org standards without copying Jenkinsfiles. |
-| Scripted pipeline `node('linux') { stage('x') { sh '...' } }` | Freeform Groovy; use only when declarative can't express it. |
-| `sh(returnStatus: true)` / `sh(returnStdout: true)` | Capture exit code / output instead of failing. |
-| `readJSON` / `writeFile` / `fileExists` | File helpers (Pipeline Utility Steps plugin). |
-| `retry(3) { ... }` / `waitUntil { ... }` | Retry flaky steps / poll for a condition. |
-| `lock('tf-state-prod') { ... }` | Mutex across jobs (Lockable Resources): prevents two pipelines applying the same state. |
-| `milestone` | Cancel older runs when a newer one passes the same point. |
-| `catchError` / `error 'msg'` / `currentBuild.result` | Handle or raise failures; set the build result manually. |
-| `build job: 'other', parameters: [...]` | Trigger another job. |
-| CLI `java -jar jenkins-cli.jar -s URL -auth u:t list-jobs \| build job -p K=V \| console job \| reload-configuration \| safe-restart` | Script the controller. |
-| JCasC `JENKINS_HOME/casc_configs/jenkins.yaml` + `plugins.txt` | Controller configuration as code: rebuildable Jenkins. |
+- **Shared library `vars/terraformDeploy.groovy` with `def call(Map cfg) { pipeline { ... } }`**
+
+  Teams write `terraformDeploy(env: 'prod')` and get the standard pipeline. How you enforce org standards without copying Jenkinsfiles.
+
+- **Scripted pipeline `node('linux') { stage('x') { sh '...' } }`**
+
+  Freeform Groovy; use only when declarative can't express it.
+
+- `sh(returnStatus: true)` / `sh(returnStdout: true)`
+
+  Capture exit code / output instead of failing.
+
+- `readJSON` / `writeFile` / `fileExists`
+
+  File helpers (Pipeline Utility Steps plugin).
+
+- `retry(3) { ... }` / `waitUntil { ... }`
+
+  Retry flaky steps / poll for a condition.
+
+- `lock('tf-state-prod') { ... }`
+
+  Mutex across jobs (Lockable Resources): prevents two pipelines applying the same state.
+
+- `milestone`
+
+  Cancel older runs when a newer one passes the same point.
+
+- `catchError` / `error 'msg'` / `currentBuild.result`
+
+  Handle or raise failures; set the build result manually.
+
+- `build job: 'other', parameters: [...]`
+
+  Trigger another job.
+
+- **CLI `java -jar jenkins-cli.jar -s URL -auth u:t list-jobs | build job -p K=V | console job | reload-configuration | safe-restart`**
+
+  Script the controller.
+
+- **JCasC `JENKINS_HOME/casc_configs/jenkins.yaml` + `plugins.txt`**
+
+  Controller configuration as code: rebuildable Jenkins.
 
 ## GitHub Actions (annotated)
 
@@ -160,17 +190,41 @@ jobs:
         run: curl -X POST -H 'Content-type: application/json' --data '{"text":"deploy failed ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"}' ${{ secrets.SLACK_WEBHOOK }}
 ```
 
-| GitHub Actions item | What it does / when to use |
-|---|---|
-| Reusable workflow: `on: workflow_call: { inputs, secrets }`; caller `jobs: x: uses: org/repo/.github/workflows/tf.yml@v1 with: {...} secrets: inherit` | One pipeline definition shared by many repos. The platform-team pattern. |
-| Composite action: `action.yml` with `runs: { using: composite, steps: [...] }` | Bundle several steps into one `uses:`. |
-| Contexts `github.*`, `env.*`, `vars.*`, `secrets.*`, `needs.*`, `steps.*.outputs`, `runner.*`, `matrix.*` | Data available to expressions. `vars` = non-secret config per repo/env. |
-| Functions `contains() startsWith() format() join() toJSON() fromJSON() hashFiles() success() failure() always() cancelled()` | In `if:` and `with:` expressions. |
-| `echo "k=v" >> $GITHUB_OUTPUT` / `>> $GITHUB_ENV` / `>> $GITHUB_STEP_SUMMARY` | Set a step output / an env var for later steps / write a Markdown summary on the run page. |
-| `::add-mask::VALUE` / `::warning::msg` / `::group::title` | Mask a value in logs / annotate / collapse log sections. |
-| Pin actions by SHA (`actions/checkout@<sha>`) | Supply-chain safety: a tag can be moved, a SHA can't. Dependabot keeps them updated. |
-| Never checkout PR head with `pull_request_target` | That trigger runs with write permissions; untrusted code from a fork could steal secrets. |
-| `gh run list \| view \| watch \| rerun`, `gh workflow run deploy -f env=prod` | CLI control. `act` runs workflows locally. |
+- **Reusable workflow: `on: workflow_call: { inputs, secrets }`; caller `jobs: x: uses: org/repo/.github/workflows/tf.yml@v1 with: {...} secrets: inherit`**
+
+  One pipeline definition shared by many repos. The platform-team pattern.
+
+- **Composite action: `action.yml` with `runs: { using: composite, steps: [...] }`**
+
+  Bundle several steps into one `uses:`.
+
+- **Contexts `github.*`, `env.*`, `vars.*`, `secrets.*`, `needs.*`, `steps.*.outputs`, `runner.*`, `matrix.*`**
+
+  Data available to expressions. `vars` = non-secret config per repo/env.
+
+- **Functions `contains() startsWith() format() join() toJSON() fromJSON() hashFiles() success() failure() always() cancelled()`**
+
+  In `if:` and `with:` expressions.
+
+- `echo "k=v" >> $GITHUB_OUTPUT` / `>> $GITHUB_ENV` / `>> $GITHUB_STEP_SUMMARY`
+
+  Set a step output / an env var for later steps / write a Markdown summary on the run page.
+
+- `::add-mask::VALUE` / `::warning::msg` / `::group::title`
+
+  Mask a value in logs / annotate / collapse log sections.
+
+- **Pin actions by SHA (`actions/checkout@<sha>`)**
+
+  Supply-chain safety: a tag can be moved, a SHA can't. Dependabot keeps them updated.
+
+- **Never checkout PR head with `pull_request_target`**
+
+  That trigger runs with write permissions; untrusted code from a fork could steal secrets.
+
+- `gh run list | view | watch | rerun`, `gh workflow run deploy -f env=prod`
+
+  CLI control. `act` runs workflows locally.
 
 ## GitLab CI (annotated)
 
@@ -233,17 +287,41 @@ include:
   - component: gitlab.example.com/platform/components/tf-plan@1.0   # CI/CD component (versioned)
 ```
 
-| GitLab item | What it does / when to use |
-|---|---|
-| Predefined vars `CI_COMMIT_SHA`, `CI_COMMIT_SHORT_SHA`, `CI_COMMIT_REF_SLUG`, `CI_PIPELINE_ID`, `CI_JOB_TOKEN`, `CI_REGISTRY_IMAGE`, `CI_MERGE_REQUEST_IID`, `CI_ENVIRONMENT_NAME` | Image tags, cache keys, registry auth, MR comments. |
-| `rules:` with `if` / `changes` / `exists` / `when` / `allow_failure` | Per-job conditions; replaces `only/except`. |
-| `needs:` | Run as soon as dependencies finish, ignoring stage order (DAG pipelines). |
-| `extends:` / `!reference [.job, script]` | Inherit a hidden job / reuse one section of it. |
-| `trigger:` | Child pipelines (`include` a generated file) or multi-project pipelines. |
-| `services: [docker:dind, postgres:16]` | Sidecar containers for the job (Docker builds, integration tests). |
-| Protected variables | Only exposed on protected branches/tags, so a feature branch can't read prod secrets. |
-| `gitlab-runner register --executor kubernetes\|docker\|shell` | Register a runner; Kubernetes executor gives ephemeral pods. |
-| GitLab-managed Terraform state: `backend "http" {}` + `TF_HTTP_ADDRESS=${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/${ENV}` | State and locking stored in GitLab; alternative to S3 for small teams. |
+- **Predefined vars `CI_COMMIT_SHA`, `CI_COMMIT_SHORT_SHA`, `CI_COMMIT_REF_SLUG`, `CI_PIPELINE_ID`, `CI_JOB_TOKEN`, `CI_REGISTRY_IMAGE`, `CI_MERGE_REQUEST_IID`, `CI_ENVIRONMENT_NAME`**
+
+  Image tags, cache keys, registry auth, MR comments.
+
+- `rules:` with `if` / `changes` / `exists` / `when` / `allow_failure`
+
+  Per-job conditions; replaces `only/except`.
+
+- `needs:`
+
+  Run as soon as dependencies finish, ignoring stage order (DAG pipelines).
+
+- `extends:` / `!reference [.job, script]`
+
+  Inherit a hidden job / reuse one section of it.
+
+- `trigger:`
+
+  Child pipelines (`include` a generated file) or multi-project pipelines.
+
+- `services: [docker:dind, postgres:16]`
+
+  Sidecar containers for the job (Docker builds, integration tests).
+
+- **Protected variables**
+
+  Only exposed on protected branches/tags, so a feature branch can't read prod secrets.
+
+- `gitlab-runner register --executor kubernetes|docker|shell`
+
+  Register a runner; Kubernetes executor gives ephemeral pods.
+
+- **GitLab-managed Terraform state: `backend "http" {}` + `TF_HTTP_ADDRESS=${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/${ENV}`**
+
+  State and locking stored in GitLab; alternative to S3 for small teams.
 
 ## CodeBuild `buildspec.yml` (annotated)
 
@@ -278,15 +356,33 @@ cache:
   paths: ['/root/.cache/pip/**/*', '/root/.terraform.d/plugin-cache/**/*']   # S3/local cache between builds
 ```
 
-| CodeBuild / CodePipeline item | What it does / when to use |
-|---|---|
-| `privilegedMode: true` on the project | Required to run Docker builds inside CodeBuild. |
-| VPC config on the project | Lets the build reach private resources; then it needs NAT or VPC endpoints for AWS APIs and ECR. |
-| `aws codebuild start-build --project-name p --source-version main` | Trigger a build manually. |
-| `aws codebuild batch-get-builds --ids ID --query 'builds[].phases[?phaseStatus==`FAILED`]'` | Which phase failed and why. |
-| Logs in CloudWatch `/aws/codebuild/<project>` | Full build output. |
-| `aws codepipeline get-pipeline-state --name p` / `start-pipeline-execution` / `put-approval-result` / `retry-stage-execution` | Inspect / run / approve / retry a stage. |
-| CodePipeline V2 | Pipeline-level variables, triggers with branch/path filters, execution modes (queued/parallel/superseded), automatic rollback on failure. |
+- `privilegedMode: true` on the project
+
+  Required to run Docker builds inside CodeBuild.
+
+- **VPC config on the project**
+
+  Lets the build reach private resources; then it needs NAT or VPC endpoints for AWS APIs and ECR.
+
+- `aws codebuild start-build --project-name p --source-version main`
+
+  Trigger a build manually.
+
+- `aws codebuild batch-get-builds --ids ID --query 'builds[].phases[?phaseStatus==`FAILED`]'`
+
+  Which phase failed and why.
+
+- **Logs in CloudWatch `/aws/codebuild/<project>`**
+
+  Full build output.
+
+- `aws codepipeline get-pipeline-state --name p` / `start-pipeline-execution` / `put-approval-result` / `retry-stage-execution`
+
+  Inspect / run / approve / retry a stage.
+
+- **CodePipeline V2**
+
+  Pipeline-level variables, triggers with branch/path filters, execution modes (queued/parallel/superseded), automatic rollback on failure.
 
 ## Pipeline hygiene checklist
 

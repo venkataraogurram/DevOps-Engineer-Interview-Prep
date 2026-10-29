@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.2 – 2026-10-28
+
+Changed
+- Cheatsheets: two-column tables replaced with stacked lists (command on one line, explanation below) so long commands no longer wrap inside narrow cells. Multi-column comparison tables (concept map, undo table, subnetting, HTTP codes) kept as tables.
+
 ## v2.1 – 2026-10-28
 
 Changed

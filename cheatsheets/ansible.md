@@ -8,35 +8,113 @@ Format: command → what it does and when you reach for it.
 
 ## CLI
 
-| Command | What it does / when to use |
-|---|---|
-| `ansible --version` | Version plus which `ansible.cfg` and Python are in use. First line of any bug report. |
-| `ansible-config dump --only-changed` | Settings that differ from defaults. Debug "why is it using the wrong inventory". |
-| `ansible-config init --disabled > ansible.cfg` | Generate a fully commented config to start from. |
-| `ansible all -i inventory.ini -m ping` | Ad hoc: can Ansible reach and run Python on every host. The connectivity smoke test. |
-| `ansible web -m shell -a 'uptime' -b` | Ad hoc command on a group, with `become` (sudo). Quick fleet-wide checks. |
-| `ansible db -m setup -a 'filter=ansible_distribution*'` | Gather facts (filtered). Use to see what variables you can branch on. |
-| `ansible all -m copy -a 'src=./f dest=/tmp/f mode=0644' -b` | Ad hoc module with arguments. Any module works this way. |
-| `ansible all -m service -a 'name=nginx state=restarted' -b` | Restart a service everywhere. |
-| `ansible-inventory -i inventory --list` / `--graph` / `--host web1` | Show the resolved inventory as JSON / as a tree / variables for one host. Debug dynamic inventory. |
-| `ansible-playbook site.yml -i inventories/prod` | Run a playbook against an inventory. |
-| `--limit web` | Restrict to a group/host pattern (`web:&prod`, `!db`). |
-| `--tags nginx` / `--skip-tags slow` | Run or skip tagged tasks. |
-| `--check --diff` | Dry run showing what would change and file diffs. Run before every prod change. |
-| `-e 'env=prod' -e @vars.json` | Extra vars (highest precedence) inline or from a file. |
-| `--start-at-task 'Install nginx'` | Resume from a task after fixing a failure mid-play. |
-| `--step` | Confirm each task interactively. |
-| `-vvv` | Verbose: shows the SSH command and module output. `-vvvv` adds connection debugging. |
-| `--list-tasks` / `--list-hosts` / `--syntax-check` | Preview what would run / on which hosts / parse only. CI uses `--syntax-check`. |
-| `ansible-vault create secrets.yml` / `edit` / `view` / `encrypt` / `decrypt` / `rekey` | Manage encrypted variable files committed to git. |
-| `ansible-vault encrypt_string 'pw' --name db_pass` | Encrypt a single value to paste into a plaintext vars file. |
-| `--ask-vault-pass` / `--vault-password-file ~/.vault_pass` / `--vault-id prod@prompt` | Supply the vault password interactively, from a file (CI), or per-environment vault IDs. |
-| `ansible-galaxy init roles/nginx` | Scaffold a role directory structure. |
-| `ansible-galaxy install -r requirements.yml` / `collection install amazon.aws community.general` | Install roles/collections pinned in a requirements file. |
-| `ansible-doc copy` / `ansible-doc -l \| grep aws` / `ansible-doc -t lookup aws_ssm` | Module docs offline / list modules / docs for a lookup plugin. Use instead of guessing arguments. |
-| `ansible-lint site.yml` | Best-practice linter (no `shell` without `changed_when`, FQCN module names, etc.). CI gate. |
-| `molecule test` | Spin up a container/instance, apply the role, verify, check idempotence, destroy. Role testing. |
-| `ansible-pull -U git@repo site.yml` | Pull mode: the host fetches the repo and applies to itself (cron). For hosts the controller can't reach. |
+- `ansible --version`
+
+  Version plus which `ansible.cfg` and Python are in use. First line of any bug report.
+
+- `ansible-config dump --only-changed`
+
+  Settings that differ from defaults. Debug "why is it using the wrong inventory".
+
+- `ansible-config init --disabled > ansible.cfg`
+
+  Generate a fully commented config to start from.
+
+- `ansible all -i inventory.ini -m ping`
+
+  Ad hoc: can Ansible reach and run Python on every host. The connectivity smoke test.
+
+- `ansible web -m shell -a 'uptime' -b`
+
+  Ad hoc command on a group, with `become` (sudo). Quick fleet-wide checks.
+
+- `ansible db -m setup -a 'filter=ansible_distribution*'`
+
+  Gather facts (filtered). Use to see what variables you can branch on.
+
+- `ansible all -m copy -a 'src=./f dest=/tmp/f mode=0644' -b`
+
+  Ad hoc module with arguments. Any module works this way.
+
+- `ansible all -m service -a 'name=nginx state=restarted' -b`
+
+  Restart a service everywhere.
+
+- `ansible-inventory -i inventory --list` / `--graph` / `--host web1`
+
+  Show the resolved inventory as JSON / as a tree / variables for one host. Debug dynamic inventory.
+
+- `ansible-playbook site.yml -i inventories/prod`
+
+  Run a playbook against an inventory.
+
+- `--limit web`
+
+  Restrict to a group/host pattern (`web:&prod`, `!db`).
+
+- `--tags nginx` / `--skip-tags slow`
+
+  Run or skip tagged tasks.
+
+- `--check --diff`
+
+  Dry run showing what would change and file diffs. Run before every prod change.
+
+- `-e 'env=prod' -e @vars.json`
+
+  Extra vars (highest precedence) inline or from a file.
+
+- `--start-at-task 'Install nginx'`
+
+  Resume from a task after fixing a failure mid-play.
+
+- `--step`
+
+  Confirm each task interactively.
+
+- `-vvv`
+
+  Verbose: shows the SSH command and module output. `-vvvv` adds connection debugging.
+
+- `--list-tasks` / `--list-hosts` / `--syntax-check`
+
+  Preview what would run / on which hosts / parse only. CI uses `--syntax-check`.
+
+- `ansible-vault create secrets.yml` / `edit` / `view` / `encrypt` / `decrypt` / `rekey`
+
+  Manage encrypted variable files committed to git.
+
+- `ansible-vault encrypt_string 'pw' --name db_pass`
+
+  Encrypt a single value to paste into a plaintext vars file.
+
+- `--ask-vault-pass` / `--vault-password-file ~/.vault_pass` / `--vault-id prod@prompt`
+
+  Supply the vault password interactively, from a file (CI), or per-environment vault IDs.
+
+- `ansible-galaxy init roles/nginx`
+
+  Scaffold a role directory structure.
+
+- `ansible-galaxy install -r requirements.yml` / `collection install amazon.aws community.general`
+
+  Install roles/collections pinned in a requirements file.
+
+- `ansible-doc copy` / `ansible-doc -l | grep aws` / `ansible-doc -t lookup aws_ssm`
+
+  Module docs offline / list modules / docs for a lookup plugin. Use instead of guessing arguments.
+
+- `ansible-lint site.yml`
+
+  Best-practice linter (no `shell` without `changed_when`, FQCN module names, etc.). CI gate.
+
+- `molecule test`
+
+  Spin up a container/instance, apply the role, verify, check idempotence, destroy. Role testing.
+
+- `ansible-pull -U git@repo site.yml`
+
+  Pull mode: the host fetches the repo and applies to itself (cron). For hosts the controller can't reach.
 
 ## Inventory
 
@@ -159,33 +237,87 @@ Variable precedence (low → high): role `defaults/` → inventory vars → `gro
 
 ## Modules by job
 
-| Need | Module(s) and notes |
-|---|---|
-| Install software | `package` (OS-agnostic), `dnf`/`yum`, `apt` (`update_cache: true`), `pip` |
-| Manage files | `copy` (static), `template` (Jinja2), `file` (perms/dirs/links), `lineinfile` (one line, regex), `blockinfile` (marked block), `replace`, `fetch` (pull from host), `unarchive`, `get_url`, `stat`, `find`, `synchronize` (rsync) |
-| Services | `service`, `systemd` (`daemon_reload: true` after unit changes, `enabled`, `state`) |
-| Users | `user`, `group`, `authorized_key` |
-| Run commands | `command` (no shell features, safest), `shell` (pipes/redirects), `raw` (no Python needed), `script` (upload+run). Always add `creates`/`removes`/`changed_when` so they're idempotent. |
-| Flow control | `debug`, `assert` (fail early on bad vars), `fail`, `set_fact`, `include_tasks` (dynamic) / `import_tasks` (static), `include_role`, `meta: flush_handlers`, `pause`, `wait_for`, `wait_for_connection` (after reboot) |
-| AWS | `amazon.aws.ec2_instance`, `s3_object`, `ec2_security_group`, `elb_target`, `aws_ssm` lookup; `community.aws.*` |
-| Kubernetes | `kubernetes.core.k8s` (apply manifests), `kubernetes.core.helm` |
-| System | `cron`, `mount`, `sysctl`, `firewalld`, `seboolean`, `hostname`, `timezone`, `reboot` (waits for the host to return) |
-| HTTP | `uri` (health checks, API calls) |
+- **Install software**
+
+  `package` (OS-agnostic), `dnf`/`yum`, `apt` (`update_cache: true`), `pip`
+
+- **Manage files**
+
+  `copy` (static), `template` (Jinja2), `file` (perms/dirs/links), `lineinfile` (one line, regex), `blockinfile` (marked block), `replace`, `fetch` (pull from host), `unarchive`, `get_url`, `stat`, `find`, `synchronize` (rsync)
+
+- **Services**
+
+  `service`, `systemd` (`daemon_reload: true` after unit changes, `enabled`, `state`)
+
+- **Users**
+
+  `user`, `group`, `authorized_key`
+
+- **Run commands**
+
+  `command` (no shell features, safest), `shell` (pipes/redirects), `raw` (no Python needed), `script` (upload+run). Always add `creates`/`removes`/`changed_when` so they're idempotent.
+
+- **Flow control**
+
+  `debug`, `assert` (fail early on bad vars), `fail`, `set_fact`, `include_tasks` (dynamic) / `import_tasks` (static), `include_role`, `meta: flush_handlers`, `pause`, `wait_for`, `wait_for_connection` (after reboot)
+
+- **AWS**
+
+  `amazon.aws.ec2_instance`, `s3_object`, `ec2_security_group`, `elb_target`, `aws_ssm` lookup; `community.aws.*`
+
+- **Kubernetes**
+
+  `kubernetes.core.k8s` (apply manifests), `kubernetes.core.helm`
+
+- **System**
+
+  `cron`, `mount`, `sysctl`, `firewalld`, `seboolean`, `hostname`, `timezone`, `reboot` (waits for the host to return)
+
+- **HTTP**
+
+  `uri` (health checks, API calls)
 
 ## Jinja2 in templates and tasks
 
-| Expression | What it does |
-|---|---|
-| `{{ var \| default('x') }}` | Fallback if undefined. |
-| `{{ list \| join(',') }}` / `{{ dict \| to_nice_json }}` / `{{ s \| upper }}` / `{{ path \| basename }}` | Common filters. |
-| `{{ hostvars['db1'].ansible_default_ipv4.address }}` | Another host's fact (needs facts gathered for that host). |
-| `{{ groups['web'] \| map('extract', hostvars, 'ansible_host') \| list }}` | IPs of all hosts in a group: build backend lists. |
-| `{% for h in groups['web'] %}server {{ hostvars[h].ansible_host }}:8080;{% endfor %}` | Loop in a template (nginx upstream). |
-| `{% if env == 'prod' %}...{% else %}...{% endif %}` | Conditional content. |
-| `{{ lookup('env', 'HOME') }}` / `{{ lookup('file', 'id_rsa.pub') }}` | Controller-side lookups. |
-| `{{ lookup('amazon.aws.aws_ssm', '/app/db_pass', region='ap-south-1') }}` | Pull a secret from SSM at run time instead of storing it in git. |
-| `{{ ansible_facts['memtotal_mb'] }}` / `{{ ansible_hostname }}` / `{{ inventory_hostname }}` / `{{ ansible_date_time.iso8601 }}` | Facts and built-ins. |
-| `loop:` + `loop_control: { label: "{{ item.name }}", index_var: i }` | Loop with readable output and an index. `loop: "{{ dict \| dict2items }}"` to loop a map. |
+- `{{ var | default('x') }}`
+
+  Fallback if undefined.
+
+- `{{ list | join(',') }}` / `{{ dict | to_nice_json }}` / `{{ s | upper }}` / `{{ path | basename }}`
+
+  Common filters.
+
+- `{{ hostvars['db1'].ansible_default_ipv4.address }}`
+
+  Another host's fact (needs facts gathered for that host).
+
+- `{{ groups['web'] | map('extract', hostvars, 'ansible_host') | list }}`
+
+  IPs of all hosts in a group: build backend lists.
+
+- `{% for h in groups['web'] %}server {{ hostvars[h].ansible_host }}:8080;{% endfor %}`
+
+  Loop in a template (nginx upstream).
+
+- `{% if env == 'prod' %}...{% else %}...{% endif %}`
+
+  Conditional content.
+
+- `{{ lookup('env', 'HOME') }}` / `{{ lookup('file', 'id_rsa.pub') }}`
+
+  Controller-side lookups.
+
+- `{{ lookup('amazon.aws.aws_ssm', '/app/db_pass', region='ap-south-1') }}`
+
+  Pull a secret from SSM at run time instead of storing it in git.
+
+- `{{ ansible_facts['memtotal_mb'] }}` / `{{ ansible_hostname }}` / `{{ inventory_hostname }}` / `{{ ansible_date_time.iso8601 }}`
+
+  Facts and built-ins.
+
+- `loop:` + `loop_control: { label: "{{ item.name }}", index_var: i }`
+
+  Loop with readable output and an index. `loop: "{{ dict | dict2items }}"` to loop a map.
 
 ## Role layout
 

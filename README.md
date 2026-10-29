@@ -2,7 +2,7 @@
 
 Built for an IDFC FIRST Bank Platform/DevOps Engineer interview (AWS focus, Terraform + Packer, Kubernetes, CI/CD, Python/Bash, 5–10 yrs), from the recruiter's prep sheet and the JD. Reusable for any AWS-centric DevOps or platform role.
 
-**Version:** v2.1 · [Changelog](CHANGELOG.md) · v1.0 is tagged if you want the shorter set.
+**Version:** v2.2 · [Changelog](CHANGELOG.md) · v1.0 is tagged if you want the shorter set.
 
 ## Layout
 
