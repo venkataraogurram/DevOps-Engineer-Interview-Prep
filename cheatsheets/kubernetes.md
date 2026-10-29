@@ -282,6 +282,172 @@ Format: command → what it does and when you reach for it. `k` = `kubectl`.
 
   Delete and recreate (for immutable field changes). Causes downtime for that object.
 
+## Imperative commands (generate manifests fast)
+
+The coding-round workflow: run the imperative command with `--dry-run=client -o yaml`, redirect to a file, edit what the generator can't express (probes, resources, secretKeyRef), then `kubectl apply -f`. Nobody writes a Deployment from a blank file under time pressure.
+
+```bash
+k create deploy api --image=nginx:1.27 --replicas=3 --port=8080 --dry-run=client -o yaml > deploy.yaml   # scaffold, then edit
+k apply -f deploy.yaml
+k create deploy api --image=nginx -o yaml --dry-run=client | tee deploy.yaml | k apply -f -              # save and apply in one go
+```
+
+### Workloads
+
+- `k create deploy NAME --image=IMG --replicas=N --port=P`
+
+  Deployment with one container. Add `-- cmd arg` at the end to override the container command. The generator sets labels `app=NAME` and matching selector, so the selector mismatch bug can't happen.
+
+- `k run NAME --image=IMG`
+
+  Bare Pod (no controller). Flags: `--env=K=V` (repeatable), `--labels=app=x,tier=web`, `--port=8080`, `--restart=Never` (Pod) / `OnFailure` (Job-like) / default `Always`, `--command -- sh -c '...'` to replace the entrypoint, `--expose` to also create a ClusterIP Service, `--rm -it` for throwaway interactive pods, `--overrides='{"spec":{...}}'` for anything else (nodeSelector, tolerations).
+
+- `k run NAME --image=IMG --dry-run=client -o yaml > pod.yaml`
+
+  Scaffold a Pod manifest to turn into a Deployment template or add probes/volumes.
+
+- `k create job NAME --image=IMG -- cmd args`
+
+  Run-to-completion Job. `k create job NAME --from=cronjob/X` triggers a CronJob immediately.
+
+- `k create cronjob NAME --image=IMG --schedule='*/5 * * * *' -- cmd`
+
+  Scheduled Job. Edit the YAML for `concurrencyPolicy: Forbid`, `successfulJobsHistoryLimit`, `startingDeadlineSeconds`.
+
+- `k scale deploy/NAME --replicas=N` / `k scale --replicas=0 -f deploy.yaml`
+
+  Change replica count (also works on rs, sts, job). Scale to 0 to stop without deleting.
+
+- `k autoscale deploy NAME --min=2 --max=10 --cpu-percent=60`
+
+  HPA in one line (needs metrics-server and CPU requests on the pods).
+
+### Services and Ingress
+
+- `k expose deploy NAME --port=80 --target-port=8080 --name=NAME-svc --type=ClusterIP`
+
+  Service that selects the Deployment's pods using its labels. `--type=NodePort|LoadBalancer`; `--protocol=UDP`. Works on `pod/`, `rs/`, `svc/` too. The fastest correct Service.
+
+- `k create svc clusterip NAME --tcp=80:8080` / `nodeport --tcp=80:8080 --node-port=30080` / `loadbalancer --tcp=443:8443` / `externalname --external-name=db.example.com`
+
+  Service by type without an existing workload; selector is `app=NAME`, so fix it in the YAML if your labels differ.
+
+- `k create ingress NAME --class=alb --rule="host.example.com/path*=svc:80,tls=secret-name" --annotation key=value`
+
+  Ingress with host/path rules; `*` suffix makes `pathType: Prefix`. Repeat `--rule` for more routes.
+
+### Config and secrets
+
+- `k create cm NAME --from-literal=K=V --from-file=app.properties --from-file=key=./path --from-env-file=.env`
+
+  ConfigMap from literals, whole files (key = filename or your `key=`), or an env file.
+
+- `k create secret generic NAME --from-literal=K=V --from-file=ssh=~/.ssh/id_rsa --from-env-file=.env`
+
+  Opaque Secret; base64 handled. `--dry-run=client -o yaml` to get YAML (then seal/ESO it; never commit plain).
+
+- `k create secret tls NAME --cert=tls.crt --key=tls.key` / `k create secret docker-registry NAME --docker-server= --docker-username= --docker-password= --docker-email=`
+
+  TLS secret for Ingress / image pull secret for a private registry.
+
+- `k set env deploy/NAME K=V K2-` / `k set env deploy/NAME --from=configmap/cfg` / `--from=secret/db --prefix=DB_`
+
+  Add/remove env vars (`K-` removes), or inject all keys of a ConfigMap/Secret as env (bulk `envFrom`). `k set env deploy/NAME --list` shows current env.
+
+- `k set image deploy/NAME CONTAINER=IMG:TAG` / `k set image deploy/NAME '*=IMG:TAG'`
+
+  New image for one or all containers; triggers a rollout.
+
+- `k set resources deploy/NAME -c=CONTAINER --requests=cpu=250m,memory=256Mi --limits=memory=512Mi`
+
+  Requests/limits without opening the YAML.
+
+- `k set serviceaccount deploy/NAME SA` / `k set selector svc/NAME app=api,version=v2`
+
+  Change the pod ServiceAccount (IRSA/Pod Identity) / repoint a Service's selector (blue/green switch by hand).
+
+### Namespaces, RBAC, policy
+
+- `k create ns NAME` / `k create sa NAME -n NS`
+
+  Namespace / ServiceAccount.
+
+- `k create quota NAME --hard=cpu=10,memory=20Gi,pods=50 -n NS`
+
+  ResourceQuota for a namespace.
+
+- `k create pdb NAME --selector=app=api --min-available=2` (or `--max-unavailable=1`)
+
+  PodDisruptionBudget so drains and upgrades keep capacity.
+
+- `k create priorityclass high --value=1000 --description="critical"`
+
+  PriorityClass for preemption.
+
+- `k create role NAME --verb=get,list,watch --resource=pods,pods/log -n NS` / `k create clusterrole NAME --verb=get --resource=nodes`
+
+  Role / ClusterRole; `--resource-name=X` restricts to named objects.
+
+- `k create rolebinding NAME --role=R --serviceaccount=NS:SA -n NS` / `--user=alice` / `--group=devs` / `k create clusterrolebinding NAME --clusterrole=view --group=devs`
+
+  Bind roles to subjects.
+
+### Metadata, nodes, in-place edits
+
+- `k label TYPE NAME k=v` / `k=v --overwrite` / `k-`
+
+  Add / change / remove (`k-`) a label. Labels drive selectors; `--overwrite` is required to change an existing value.
+
+- `k annotate TYPE NAME k=v` / `k-`
+
+  Annotations (non-selecting metadata, e.g. `kubernetes.io/change-cause`, ALB controller settings).
+
+- `k taint nodes NODE k=v:NoSchedule|PreferNoSchedule|NoExecute` / `k taint nodes NODE k-`
+
+  Repel pods / remove the taint.
+
+- `k cordon NODE` / `k drain NODE --ignore-daemonsets --delete-emptydir-data` / `k uncordon NODE`
+
+  Node maintenance sequence.
+
+- `k edit TYPE NAME` / `KUBE_EDITOR=nano k edit ...`
+
+  Live edit in your editor (not in git; follow up with a PR).
+
+- `k patch TYPE NAME -p '{...}'` / `--type=merge|json|strategic`
+
+  Surgical change from the command line; JSON patch for arrays (`/spec/template/spec/containers/0/image`).
+
+- `k replace -f f.yaml` / `k replace --force -f f.yaml`
+
+  Replace an object (`--force` deletes and recreates: needed for immutable fields, causes downtime for that object).
+
+- `k delete TYPE NAME` / `-l app=api` / `--all -n NS` / `--now` / `--grace-period=0 --force`
+
+  Delete by name / label / everything in a namespace / short grace / force (stuck Terminating, last resort).
+
+### Generator flags worth memorising
+
+- `--dry-run=client -o yaml`
+
+  Print the manifest without creating anything. Add to every imperative command in the exam/coding round.
+
+- `--dry-run=server`
+
+  Validate against the real API server and admission webhooks, still without persisting.
+
+- `-o yaml > file && k apply -f file`
+
+  Imperative to declarative in one move.
+
+- `--record` (deprecated) → `k annotate ... kubernetes.io/change-cause="..."`
+
+  Record why a change was made for `rollout history`.
+
+- `kubectl create --help` / `kubectl create deploy --help`
+
+  Every generator lists its flags; use it instead of guessing.
+
 ## Rollouts
 
 - `k rollout status deploy/api --timeout=180s`
